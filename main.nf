@@ -35,6 +35,13 @@ workflow {
         failOnPurpose()
     }
 }
+workflow.onError { err ->
+    println "=================================================="
+    println "Pipeline encountered an error!"
+    println "Error message: ${err.message}"
+    println "Please review the error and take necessary actions."
+    println "=================================================="
+}
 
 workflow.onComplete {
     def status = workflow.success ? "SUCCESS" : "FAILED"
