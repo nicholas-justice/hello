@@ -35,10 +35,10 @@ workflow {
         failOnPurpose()
     }
 }
-workflow.onError { err ->
+workflow.onError {
     println "=================================================="
     println "Pipeline encountered an error!"
-    println "Error message: ${err.message}"
+    println "Error message: ${workflow.errorMessage}"
     println "Please review the error and take necessary actions."
     println "=================================================="
 }
