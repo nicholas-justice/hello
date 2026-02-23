@@ -1,0 +1,58 @@
+name: Poll Seqera Status
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # Every 5 minutes (more frequent for testing)
+  workflow_dispatch:
+
+# Only one poll job at a time - cancel stale ones
+concurrency:
+  group: seqera-status-poller
+  cancel-in-progress: true
+
+jobs:
+  poll-status:
+    name: Check Completed QA Runs
+    runs-on: [self-hosted, dx-pcluster]
+
+    env:
+      TOWER_ACCESS_TOKEN: ${{ secrets.TOWER_ACCESS_TOKEN }}
+      TOWER_API_ENDPOINT: "https://seqera.am.lilly.com/api"
+      TOWER_WORKSPACE_ID: "147963873452403"
+
+    steps:
+      - name: Query Seqera for completed QA runs
+        run: |
+          python /fsx/actions-runners/seqera-ci/seqera_cli.py list-qa-runs \
+            --max-results 30 > runs.json
+          echo "Found $(jq length runs.json) completed QA runs"
+          cat runs.json
+
+      - name: Update GitHub statuses
+        env:
+          GH_TOKEN: ${{ secrets.DEVOPS_GITHUB_TOKEN }}
+        run: |
+          jq -c '.[]' runs.json | while read -r run; do
+            repo=$(echo "$run" | jq -r '.repo')
+            sha=$(echo "$run" | jq -r '.sha')
+            state=$(echo "$run" | jq -r '.state')
+            desc=$(echo "$run" | jq -r '.description')
+            url=$(echo "$run" | jq -r '.url')
+
+            echo "Updating ${repo} @ ${sha:0:8}: ${state}"
+
+            # Try nicholas-justice org first, then EliLillyCo
+            gh api "repos/nicholas-justice/${repo}/statuses/${sha}" \
+              -f state="$state" \
+              -f target_url="$url" \
+              -f description="$desc" \
+              -f context="Seqera QA" \
+              --silent 2>/dev/null && echo "  Updated nicholas-justice/${repo}" || \
+            gh api "repos/EliLillyCo/${repo}/statuses/${sha}" \
+              -f state="$state" \
+              -f target_url="$url" \
+              -f description="$desc" \
+              -f context="Seqera QA" \
+              --silent 2>/dev/null && echo "  Updated EliLillyCo/${repo}" || \
+            echo "  Failed to update (repo may not exist in either org)"
+          done
