@@ -23,7 +23,7 @@ jobs:
     steps:
       - name: Query Seqera for completed QA runs
         run: |
-          python /fsx/actions-runners/seqera-ci/seqera_cli.py list-qa-runs \
+          python /fsx/actions-runners/cbcds-seqera-tools/seqera_ci.py list-qa-runs \
             --max-results 30 > runs.json
           echo "Found $(jq length runs.json) completed QA runs"
           cat runs.json
