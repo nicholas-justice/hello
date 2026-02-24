@@ -83,7 +83,7 @@ jobs:
           RUN_NAME="QA_${REPO_NAME}_${{ steps.revision.outputs.sha }}"
 
           # Launch pipeline (status will be updated by poll-seqera-status.yml)
-          DEPLOY_OUTPUT=$(python /fsx/actions-runners/seqera-ci/seqera_cli.py deploy "${PIPELINE_NAME}" \
+          DEPLOY_OUTPUT=$(python /fsx/actions-runners/cbcds-seqera-tools/seqera_ci.py deploy "${PIPELINE_NAME}" \
             --repo "https://github.com/${{ github.repository }}" \
             --revision "${{ steps.revision.outputs.revision }}" \
             --profiles awsbatch \
