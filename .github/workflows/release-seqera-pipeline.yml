@@ -1,0 +1,80 @@
+name: Seqera Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.2.0)'
+        required: true
+
+jobs:
+  release-seqera:
+    name: Deploy to Launchpad
+    runs-on: [self-hosted, dx-pcluster]
+
+    env:
+      TOWER_ACCESS_TOKEN: ${{ secrets.TOWER_ACCESS_TOKEN }}
+      PIPELINE_NAME: "hello"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Validate token
+        run: |
+          if [[ -z "${TOWER_ACCESS_TOKEN}" ]]; then
+            echo "::error::TOWER_ACCESS_TOKEN secret is not set"
+            exit 1
+          fi
+
+      - name: Get version tag
+        id: version
+        run: |
+          if [[ -n "${{ github.event.inputs.version }}" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ -n "${{ github.event.release.tag_name }}" ]]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Deploying version: ${VERSION}"
+
+      - name: Upsert pipeline (no launch)
+        id: seqera
+        run: |
+          python /fsx/actions-runners/cbcds-seqera-tools/seqera_ci.py upsert "${PIPELINE_NAME}" \
+            --repo "https://github.com/${{ github.repository }}" \
+            --revision "${{ steps.version.outputs.version }}" \
+            --labels latest "${{ steps.version.outputs.version }}"
+
+      - name: Update release with deployment status (success)
+        if: success() && github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CURRENT_BODY=$(gh release view "${{ steps.version.outputs.version }}" --json body -q .body)
+          printf '%s\n\n---\n✅ **Deployed to Seqera Launchpad** - [View Pipeline](https://seqera.am.lilly.com/orgs/LillyOmicsHub/workspaces/LGT/launchpad)' "$CURRENT_BODY" > /tmp/release_notes.md
+          gh release edit "${{ steps.version.outputs.version }}" --notes-file /tmp/release_notes.md
+
+      - name: Update release with deployment status (failure)
+        if: failure() && github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CURRENT_BODY=$(gh release view "${{ steps.version.outputs.version }}" --json body -q .body)
+          printf '%s\n\n---\n❌ **Deployment to Seqera failed** - [Check workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})' "$CURRENT_BODY" > /tmp/release_notes.md
+          gh release edit "${{ steps.version.outputs.version }}" --notes-file /tmp/release_notes.md
+
+      - name: Summary
+        run: |
+          echo "## Release Deployed to Seqera Launchpad" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pipeline:** ${PIPELINE_NAME}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pipeline ID:** ${{ steps.seqera.outputs.pipeline_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Labels:** latest, ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Pipeline is ready in the Launchpad but **not launched**." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[View in Seqera](https://seqera.am.lilly.com/orgs/LillyOmicsHub/workspaces/LGT/launchpad)" >> $GITHUB_STEP_SUMMARY
