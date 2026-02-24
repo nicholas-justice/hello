@@ -30,7 +30,9 @@ jobs:
 
       - name: Update GitHub statuses
         env:
-          GH_TOKEN: ${{ secrets.DEVOPS_GITHUB_TOKEN }}
+          # TODO: revert to DEVOPS_GITHUB_TOKEN for prod
+          # GH_TOKEN: ${{ secrets.DEVOPS_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           jq -c '.[]' runs.json | while read -r run; do
             repo=$(echo "$run" | jq -r '.repo')
