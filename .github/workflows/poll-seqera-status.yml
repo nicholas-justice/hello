@@ -10,6 +10,9 @@ concurrency:
   group: seqera-status-poller
   cancel-in-progress: true
 
+permissions:
+  statuses: write
+
 jobs:
   poll-status:
     name: Check Completed QA Runs
